@@ -1,4 +1,4 @@
-using ApiYoutubeStats.Configurations;
+﻿using ApiYoutubeStats.Configurations;
 using ApiYoutubeStats.Mappings;
 using ApiYoutubeStats.Services.Implementations;
 using ApiYoutubeStats.Services.Interfaces;
@@ -10,13 +10,29 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddUserSecrets<Program>();
 builder.Services.Configure<YouTubeSettings>(builder.Configuration.GetSection("YouTube"));
 
+//#if DEBUG
+//var apiKeys = builder.Configuration.GetSection("YouTube:ApiKeys").Get<List<string>>();
+//foreach (var key in apiKeys)
+//{
+//    Console.WriteLine($"YouTube API Key: {key}");
+//}
+//#endif
 #if DEBUG
 var apiKeys = builder.Configuration.GetSection("YouTube:ApiKeys").Get<List<string>>();
-foreach (var key in apiKeys)
+
+if (apiKeys != null && apiKeys.Any())
 {
-    Console.WriteLine($"YouTube API Key: {key}");
+    foreach (var key in apiKeys)
+    {
+        Console.WriteLine($"YouTube API Key: {key}");
+    }
+}
+else
+{
+    Console.WriteLine("No YouTube API Keys found in configuration.");
 }
 #endif
+
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
