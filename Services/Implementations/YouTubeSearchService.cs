@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 using ApiYoutubeStats.Configurations;
 using Microsoft.Extensions.Options;
 using YoutubeExplode.Common;
+using ApiYoutubeStats.DTOs;
 
 public class YouTubeSearchService : ISearchService
 {
@@ -38,6 +39,8 @@ public class YouTubeSearchService : ISearchService
 
     public async Task<List<YouTubeSearchResultDto>> SearchYoutubeAsync(string query, int maxResults)
     {
+
+
         //Funciona igual sin las claves de la API
         if (_apiKeys.Length == 0)
         {
@@ -59,7 +62,7 @@ public class YouTubeSearchService : ISearchService
         for (int i = 0; i < _apiKeys.Length; i++)
         {
             string apiKey = _apiKeys[_currentKeyIndex];
-            string url = $"https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults={maxResults}&q={Uri.EscapeDataString(query)}&key={apiKey}";
+            string url = $"https://www.googleapis.com/youtube/v3/search?part=snippet&type=video,playlist&maxResults={maxResults}&q={Uri.EscapeDataString(query)}&key={apiKey}";
 
             try
             {
@@ -92,8 +95,25 @@ public class YouTubeSearchService : ISearchService
                 foreach (var item in items.EnumerateArray())
                 {
                     if (!item.TryGetProperty("id", out var idProp)) continue;
-                    if (!idProp.TryGetProperty("videoId", out var videoIdProp)) continue;
-                    var id = videoIdProp.GetString();
+
+                    string id = "";
+                    string type = "";
+
+                    if (idProp.TryGetProperty("videoId", out var videoIdProp))
+                    {
+                        id = videoIdProp.GetString() ?? "";
+                        type = "video";
+                    }
+                    else if (idProp.TryGetProperty("playlistId", out var playlistIdProp))
+                    {
+                        id = playlistIdProp.GetString() ?? "";
+                        type = "playlist";
+                    }
+                    else
+                    {
+                        //ignorar o manejar según convenga
+                        continue;
+                    }
 
                     if (!item.TryGetProperty("snippet", out var snippet)) continue;
                     var title = snippet.GetProperty("title").GetString() ?? "";
@@ -102,14 +122,16 @@ public class YouTubeSearchService : ISearchService
 
                     results.Add(new YouTubeSearchResultDto
                     {
-                        VideoId = id ?? "",
+                        VideoId = id,
                         Title = title,
                         ThumbnailUrl = thumbnailUrl,
-                        ChannelTitle = channelTitle
+                        ChannelTitle = channelTitle,
+                        Type = type
                     });
                 }
 
-                await AddDurationsAsync(results, apiKey);
+                await AddDurationsAsync(results.Where(r => r.Type == "video").ToList(), apiKey);
+
 
                 _cache.Set(cacheKey, results, TimeSpan.FromMinutes(30));
                 return results;
@@ -206,4 +228,31 @@ public class YouTubeSearchService : ISearchService
             return "";
         }
     }
+    public async Task<YouTubePlaylistDto> GetPlaylistInfoAsync(string playlistId)
+    {
+        var youtube = new YoutubeExplode.YoutubeClient();
+        var playlist = await youtube.Playlists.GetAsync(playlistId);
+        var videos = await youtube.Playlists.GetVideosAsync(playlistId).CollectAsync();
+
+        return new YouTubePlaylistDto
+        {
+            Id = playlist.Id.Value,
+            Title = playlist.Title,
+            Author = playlist.Author?.ChannelTitle ?? "",
+            Url = $"https://www.youtube.com/playlist?list={playlist.Id.Value}",
+            Videos = videos.Select(video => new YouTubeSearchResultDto
+            {
+                VideoId = video.Id.Value,
+                Title = video.Title,
+                ThumbnailUrl = video.Thumbnails.GetWithHighestResolution().Url,
+                ChannelTitle = video.Author?.ChannelTitle ?? "",
+                Duration = video.Duration.HasValue
+                    ? (video.Duration.Value.Hours > 0
+                        ? $"{video.Duration.Value.Hours}:{video.Duration.Value.Minutes:D2}:{video.Duration.Value.Seconds:D2}"
+                        : $"{video.Duration.Value.Minutes}:{video.Duration.Value.Seconds:D2}")
+                    : ""
+            }).ToList()
+        };
+    }
+
 }

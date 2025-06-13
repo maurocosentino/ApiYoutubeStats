@@ -5,4 +5,5 @@
     public string ThumbnailUrl { get; set; } = "";
     public string ChannelTitle { get; set; } = "";
     public string? Duration { get; set; }
+    public string Type { get; set; } = "";
 }

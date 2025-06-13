@@ -14,9 +14,11 @@ public class YoutubeSearchController : ControllerBase
         _logger = logger;
     }
 
+
     [HttpGet]
     public async Task<IActionResult> Search([FromQuery] string q)
     {
+
         if (string.IsNullOrWhiteSpace(q))
         {
             _logger.LogWarning("Intento de búsqueda con query vacío o nulo");
@@ -37,4 +39,22 @@ public class YoutubeSearchController : ControllerBase
             return StatusCode(500, "Error interno del servidor");
         }
     }
+
+
+
+    [HttpGet("playlist/{playlistId}")]
+    public async Task<IActionResult> GetPlaylist(string playlistId)
+    {
+        try
+        {
+            var result = await _searchService.GetPlaylistInfoAsync(playlistId);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener información de la playlist: {PlaylistId}", playlistId);
+            return StatusCode(500, "Error al obtener la playlist.");
+        }
+    }
+
 }
