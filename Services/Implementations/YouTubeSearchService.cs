@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using ApiYoutubeStats.Configurations;
 using Microsoft.Extensions.Options;
+using YoutubeExplode.Common;
 
 public class YouTubeSearchService : ISearchService
 {
@@ -107,9 +108,39 @@ public class YouTubeSearchService : ISearchService
                 _currentKeyIndex = (_currentKeyIndex + 1) % _apiKeys.Length;
             }
         }
+        
+        _logger.LogWarning("Todas las claves fallaron. Usando YoutubeExplode como alternativa...");
+        var explodeResults = await SearchWithYoutubeExplode(query, maxResults);
 
-        throw new Exception("Todas las claves API fallaron.");
+        if (explodeResults == null || explodeResults.Count == 0)
+        {
+            _logger.LogError("YoutubeExplode también falló al buscar '{Query}'", query);
+            throw new Exception("No se pudieron obtener resultados desde ninguna fuente.");
+        }
+
+        _cache.Set(cacheKey, explodeResults, TimeSpan.FromMinutes(15));
+        return explodeResults;
+
     }
+    private static async Task<List<YouTubeSearchResultDto>> SearchWithYoutubeExplode(string query, int maxResults)
+    {
+        var youtube = new YoutubeExplode.YoutubeClient();
+        var searchResults = await youtube.Search.GetVideosAsync(query).CollectAsync(maxResults);
+
+        return searchResults.Select(video => new YouTubeSearchResultDto
+        {
+            VideoId = video.Id.Value,
+            Title = video.Title,
+            ThumbnailUrl = video.Thumbnails.GetWithHighestResolution().Url,
+            ChannelTitle = video.Author?.ChannelTitle ?? "",
+            Duration = video.Duration.HasValue
+                ? (video.Duration.Value.Hours > 0
+                    ? $"{video.Duration.Value.Hours}:{video.Duration.Value.Minutes:D2}:{video.Duration.Value.Seconds:D2}"
+                    : $"{video.Duration.Value.Minutes}:{video.Duration.Value.Seconds:D2}")
+                : ""
+        }).ToList();
+    }
+
     private async Task AddDurationsAsync(List<YouTubeSearchResultDto> results, string apiKey)
     {
         if (results == null || results.Count == 0) return;
@@ -147,7 +178,7 @@ public class YouTubeSearchService : ISearchService
     }
 
 
-    private string ConvertFromIsoDuration(string iso)
+    private static string ConvertFromIsoDuration(string iso)
     {
         try
         {
