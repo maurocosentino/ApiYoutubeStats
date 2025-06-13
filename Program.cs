@@ -1,6 +1,7 @@
 using ApiYoutubeStats.Configurations;
 using ApiYoutubeStats.Mappings;
 using ApiYoutubeStats.Services.Implementations;
+using ApiYoutubeStats.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using YoutubeExplode;
 
@@ -21,11 +22,19 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<IFavoriteService, FavoriteService>();
+builder.Services.AddScoped<IStatsService, StatsService>();
 builder.Services.AddScoped<IStatsCache, MemoryStatsCache>();
+builder.Services.AddScoped<RecommendationEngine>();
+builder.Services.AddScoped<IHistoryService, HistoryService>();
+builder.Services.AddScoped<IPlaybackManager, PlaybackManager>();
+builder.Services.AddScoped<IPlaylistService, PlaylistService>();
+
+
 
 builder.Services.AddAutoMapper(typeof(MappingProfile));
 builder.Services.AddSingleton<YoutubeClient>();
 builder.Services.AddHttpClient<ISearchService, YouTubeSearchService>();
+
 builder.Services.AddHttpClient<GeniusLyricsService>();
 
 builder.Services.AddMemoryCache();
