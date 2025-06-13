@@ -484,6 +484,7 @@ $RECYCLE.BIN/
 *.swp
 # ASP.NET secrets
 secrets.json
+**/secrets.json
 
 # Config files
 *.env
