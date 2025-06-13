@@ -2,6 +2,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
+using ApiYoutubeStats.Configurations;
+using Microsoft.Extensions.Options;
 
 public class YouTubeSearchService : ISearchService
 {
@@ -13,17 +15,19 @@ public class YouTubeSearchService : ISearchService
     private int _currentKeyIndex = 0;
 
     public YouTubeSearchService(
-        IConfiguration config,
-        HttpClient http,
-        ILogger<YouTubeSearchService> logger,
-        IMemoryCache cache)
+    IOptions<YouTubeSettings> youtubeSettings,
+    HttpClient http,
+    ILogger<YouTubeSearchService> logger,
+    IMemoryCache cache)
     {
         _http = http;
         _logger = logger;
         _cache = cache;
 
-        _apiKeys = config.GetSection("YouTube:ApiKeys").Get<string[]>()
-                   ?? throw new Exception("No se encontraron claves API.");
+        _apiKeys = youtubeSettings.Value.ApiKeys;
+
+        if (_apiKeys == null || _apiKeys.Length == 0)
+            throw new Exception("No se encontraron claves API.");
     }
 
     public async Task<List<YouTubeSearchResultDto>> SearchYoutubeAsync(string query, int maxResults)
