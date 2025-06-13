@@ -25,14 +25,26 @@ public class YouTubeSearchService : ISearchService
         _logger = logger;
         _cache = cache;
 
-        _apiKeys = youtubeSettings.Value.ApiKeys;
+        _apiKeys = youtubeSettings.Value.ApiKeys ?? Array.Empty<string>();
 
-        if (_apiKeys == null || _apiKeys.Length == 0)
-            throw new Exception("No se encontraron claves API.");
+        _logger.LogInformation("Cantidad de claves API cargadas: {Count}", _apiKeys.Length);
+
+        if (_apiKeys.Length == 0)
+        {
+            _logger.LogWarning("No se encontraron claves API. Se usará YoutubeExplode como alternativa.");
+        }
+
     }
 
     public async Task<List<YouTubeSearchResultDto>> SearchYoutubeAsync(string query, int maxResults)
     {
+        //Funciona igual sin las claves de la API
+        if (_apiKeys.Length == 0)
+        {
+            _logger.LogWarning("No hay claves API configuradas. Usando solo YoutubeExplode.");
+            return await SearchWithYoutubeExplode(query, maxResults);
+        }
+
         if (string.IsNullOrWhiteSpace(query))
             throw new ArgumentException("La query no puede estar vacía.");
 
@@ -102,14 +114,16 @@ public class YouTubeSearchService : ISearchService
                 _cache.Set(cacheKey, results, TimeSpan.FromMinutes(30));
                 return results;
             }
+
+            //Si se vence una clave busca la siguiente y si fallan todas usa SearchWithYoutubeExplode
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Fallo al buscar '{Query}' con clave #{Index}. Probando siguiente clave...", query, _currentKeyIndex);
                 _currentKeyIndex = (_currentKeyIndex + 1) % _apiKeys.Length;
             }
         }
-        
-        _logger.LogWarning("Todas las claves fallaron. Usando YoutubeExplode como alternativa...");
+
+        _logger.LogWarning("Todas las claves han sido probadas o fallaron. Usando YoutubeExplode como alternativa...");
         var explodeResults = await SearchWithYoutubeExplode(query, maxResults);
 
         if (explodeResults == null || explodeResults.Count == 0)
@@ -153,7 +167,7 @@ public class YouTubeSearchService : ISearchService
 
         if (!response.IsSuccessStatusCode)
         {
-            // Detectar cuota excedida
+            // Detecta cuota excedida
             if ((int)response.StatusCode == 403 && json.Contains("quotaExceeded"))
             {
                 throw new Exception("Quota exceeded");
