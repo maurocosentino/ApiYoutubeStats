@@ -1,4 +1,4 @@
-echo ##" 🎵YoutubeStats"
+##🎵 YoutubeStats
 
 API musical desarrollada en **ASP.NET Core** que permite buscar, explorar y reproducir contenido de YouTube, incluyendo soporte para:
 
